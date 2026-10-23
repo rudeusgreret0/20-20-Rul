@@ -1,0 +1,6 @@
+{
+  "name": "20-20 Eye Care",
+  "description": "Automatic 20-20-20 eye-care reminder with reliable background timing, actionable notifications, and guided rest cycles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

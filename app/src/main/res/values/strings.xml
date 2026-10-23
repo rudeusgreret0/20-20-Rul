@@ -1,0 +1,68 @@
+<resources>
+    <string name="app_name">20-20 Eye Care</string>
+    <string name="app_subtitle">Automatic 20-20-20 Visual Wellness</string>
+
+    <!-- Status Labels -->
+    <string name="status_disabled">Reminder Disabled</string>
+    <string name="status_next_eye_break">Next Eye Break</string>
+    <string name="status_time_to_rest">Time to Rest</string>
+    <string name="status_resting_now">Resting Now</string>
+    <string name="status_rest_completed">Rest Period Complete</string>
+    <string name="status_reminder_paused">Reminder Paused</string>
+
+    <!-- Status Subtitles / Guidance -->
+    <string name="guidance_disabled">Enable automatic 20-minute screen-time tracking and guided 20-foot distance breaks.</string>
+    <string name="guidance_counting_20_min">Running reliably in the background. You will be alerted after 20 minutes of active time.</string>
+    <string name="guidance_alarm_ringing">20 minutes elapsed! Acknowledge the alarm to begin your eye-rest countdown.</string>
+    <string name="guidance_counting_rest">Look at an object at least 20 feet (6 meters) away and blink softly.</string>
+    <string name="guidance_rest_completed">Great job resting your eyes! Tap Continue to start the next 20-minute cycle.</string>
+    <string name="guidance_paused">Timer is paused. Resume anytime to continue where you left off.</string>
+
+    <!-- Primary Controls -->
+    <string name="action_enable_reminder">Start Reminder</string>
+    <string name="action_pause_reminder">Pause</string>
+    <string name="action_resume_reminder">Resume</string>
+    <string name="action_disable_reminder">Stop &amp; Disable</string>
+    <string name="action_stop_alarm_start_rest">Stop Alarm &amp; Start Rest</string>
+    <string name="action_complete_rest_continue">Done — Start Next 20m</string>
+
+    <!-- Settings -->
+    <string name="settings_section_title">Essential Settings</string>
+    <string name="settings_rest_duration_label">Eye-Rest Duration</string>
+    <string name="settings_rest_duration_desc">Countdown length after you acknowledge the 20-minute alarm</string>
+    <string name="settings_rest_20s">20 sec (Default)</string>
+    <string name="settings_rest_30s">30 sec</string>
+    <string name="settings_sound_label">Alarm &amp; Completion Sound</string>
+    <string name="settings_sound_desc">Play harmonic audio chimes when work and rest periods end</string>
+    <string name="settings_primary_interval_label">Primary Work Interval</string>
+    <string name="settings_primary_interval_value">Fixed at 20:00 minutes (20-20-20 standard)</string>
+
+    <!-- Permissions & OS Reliability -->
+    <string name="permissions_section_title">Background Reliability &amp; Permissions</string>
+    <string name="permission_notifications_title">Notifications Permission</string>
+    <string name="permission_notifications_granted">Granted — Alerts and notification actions are active</string>
+    <string name="permission_notifications_missing">Required to show alarms and allow stopping/continuing from the shade</string>
+    <string name="permission_exact_alarm_title">Exact Alarm Precision</string>
+    <string name="permission_exact_alarm_granted">Granted — Triggers at the exact second even when screen is off</string>
+    <string name="permission_exact_alarm_missing">Recommended so Android does not delay 20-minute reminders in Doze mode</string>
+    <string name="permission_battery_title">Unrestricted Background Execution</string>
+    <string name="permission_battery_granted">Optimized — Exempt from aggressive background restrictions</string>
+    <string name="permission_battery_missing">Recommended if your device manufacturer stops background timers</string>
+    <string name="action_grant">Grant</string>
+    <string name="action_configure">Configure</string>
+
+    <!-- System Limitations Note -->
+    <string name="os_limitations_title">How Background Timing Works</string>
+    <string name="os_limitations_body">• Active &amp; Locked Screen: Runs continuously via an ongoing Foreground Service and system AlarmManager.\n• Device Shutdown: Android apps cannot run while the phone is powered off.\n• Automatic Reboot Recovery: When your phone restarts, 20-20 Eye Care automatically restores your active reminder state without duplicate alarms.</string>
+
+    <!-- Notifications -->
+    <string name="notif_channel_ongoing_name">Ongoing Eye-Care Timer</string>
+    <string name="notif_channel_ongoing_desc">Displays active 20-20-20 countdown status in the background</string>
+    <string name="notif_channel_alarm_name">Eye-Rest Alarms &amp; Alerts</string>
+    <string name="notif_channel_alarm_desc">Audible alerts when 20-minute screen time or 20-second rest finishes</string>
+    <string name="notif_action_stop_alarm">Stop Alarm &amp; Rest</string>
+    <string name="notif_action_done">Done (Start 20m)</string>
+    <string name="notif_action_pause">Pause</string>
+    <string name="notif_action_resume">Resume</string>
+    <string name="notif_action_disable">Disable</string>
+</resources>
