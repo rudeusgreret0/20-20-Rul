@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
  * sound/vibration playback (EyeCareSoundPlayer), notifications (EyeCareNotificationHelper),
  * and the foreground service (EyeCareForegroundService).
  *
- * Ensures that every transition happens atomically and exactly once, whether triggered from
- * the UI, a notification action, a background service tick, an AlarmManager broadcast, or device reboot.
+ * Ensures that every transition happens atomically and exactly once, without flooding
+ * NotificationManager, AlarmManager, or ActivityManager on timer ticks.
  */
 class EyeCareCoordinator(
     private val appContext: Context,
@@ -81,8 +81,8 @@ class EyeCareCoordinator(
 
     fun setRestDurationSeconds(seconds: Int): ReminderSnapshot {
         val result = repository.setRestDurationSeconds(seconds)
-        if (result.changed) {
-            notificationHelper.updateOngoingNotification(result.current, clock.nowMillis())
+        if (result.changed && result.current.state != ReminderState.DISABLED) {
+            notificationHelper.updateOngoingNotification(result.current, clock.nowMillis(), force = true)
         }
         return result.current
     }
@@ -100,7 +100,34 @@ class EyeCareCoordinator(
     }
 
     /**
-     * Reconciles timer state after process recreation, screen unlock, service tick, or device reboot.
+     * Lightweight timer expiration check called on UI/Service ticks.
+     * Does NOT perform expensive AlarmManager or startForegroundService IPC unless the
+     * countdown actually reached 0 and transitioned to ALARM_RINGING or REST_COMPLETED.
+     */
+    fun checkTimerExpirationOnTick(): ReminderSnapshot {
+        val current = repository.currentSnapshot
+        val now = clock.nowMillis()
+        if (current.state == ReminderState.COUNTING_20_MINUTES && now >= current.targetEpochMillis) {
+            val result = repository.onWorkTimerExpired(current.stateVersion)
+            applySideEffects(result, isSoundTriggerAllowed = true)
+            return result.current
+        }
+        if (current.state == ReminderState.COUNTING_REST && now >= current.targetEpochMillis) {
+            val result = repository.onRestTimerExpired(current.stateVersion)
+            applySideEffects(result, isSoundTriggerAllowed = true)
+            return result.current
+        }
+        // Periodically checkpoint remaining time every 15 seconds without triggering heavy IPC
+        if (current.state == ReminderState.COUNTING_20_MINUTES ||
+            current.state == ReminderState.COUNTING_REST
+        ) {
+            repository.reconcileState(isDeviceBoot = false)
+        }
+        return repository.currentSnapshot
+    }
+
+    /**
+     * Reconciles timer state after process recreation, Activity onResume, or device reboot.
      */
     fun reconcile(isDeviceBoot: Boolean = false): ReminderSnapshot {
         val result = repository.reconcileState(isDeviceBoot = isDeviceBoot)
@@ -110,8 +137,8 @@ class EyeCareCoordinator(
             val current = result.current
             if (current.state != ReminderState.DISABLED) {
                 alarmScheduler.syncAlarmForSnapshot(current)
-                notificationHelper.updateOngoingNotification(current, clock.nowMillis())
-                notificationHelper.syncAlertNotification(current)
+                notificationHelper.updateOngoingNotification(current, clock.nowMillis(), force = false)
+                notificationHelper.syncAlertNotification(current, force = false)
                 ensureForegroundServiceRunning()
             }
         }
@@ -155,14 +182,15 @@ class EyeCareCoordinator(
             notificationHelper.cancelAllNotifications()
             stopForegroundService()
         } else {
-            notificationHelper.updateOngoingNotification(current, clock.nowMillis())
-            notificationHelper.syncAlertNotification(current)
+            notificationHelper.updateOngoingNotification(current, clock.nowMillis(), force = true)
+            notificationHelper.syncAlertNotification(current, force = true)
             ensureForegroundServiceRunning()
         }
     }
 
     private fun ensureForegroundServiceRunning() {
         if (!startServiceHooksEnabled) return
+        if (EyeCareForegroundService.isRunning) return
         runCatching {
             val intent = Intent(appContext, EyeCareForegroundService::class.java).apply {
                 action = EyeCareForegroundService.ACTION_START_OR_SYNC

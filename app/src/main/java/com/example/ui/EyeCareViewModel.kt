@@ -37,7 +37,6 @@ class EyeCareViewModel @JvmOverloads constructor(
     val uiState: StateFlow<EyeCareUiState> = _uiState.asStateFlow()
 
     init {
-        // Reconcile immediately on ViewModel startup without resetting active countdowns
         coordinator.reconcile(isDeviceBoot = false)
 
         viewModelScope.launch {
@@ -46,17 +45,17 @@ class EyeCareViewModel @JvmOverloads constructor(
             }
         }
 
-        // High-responsiveness UI ticker (250ms) so the on-screen timer and progress ring stay crisp
+        // Lightweight in-memory UI ticker (200ms) that never blocks on IPC
         viewModelScope.launch {
             while (isActive) {
                 val current = coordinator.repository.currentSnapshot
                 if (current.state == ReminderState.COUNTING_20_MINUTES ||
                     current.state == ReminderState.COUNTING_REST
                 ) {
-                    coordinator.reconcile(isDeviceBoot = false)
+                    coordinator.checkTimerExpirationOnTick()
                 }
                 _uiState.update { buildUiState(coordinator.repository.currentSnapshot) }
-                delay(250L)
+                delay(200L)
             }
         }
     }
@@ -104,6 +103,14 @@ class EyeCareViewModel @JvmOverloads constructor(
     fun onToggleSoundEnabled(enabled: Boolean) {
         coordinator.setSoundEnabled(enabled)
         _uiState.update { buildUiState(coordinator.repository.currentSnapshot) }
+    }
+
+    fun onPreviewAlarmChimeClicked() {
+        coordinator.soundPlayer.previewAlarmChime()
+    }
+
+    fun onPreviewRestCompleteChimeClicked() {
+        coordinator.soundPlayer.previewRestCompleteChime()
     }
 
     private fun buildUiState(snapshot: ReminderSnapshot): EyeCareUiState {

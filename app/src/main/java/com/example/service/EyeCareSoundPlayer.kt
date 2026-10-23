@@ -2,33 +2,31 @@ package com.example.service
 
 import android.content.Context
 import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.MediaPlayer
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlin.math.PI
-import kotlin.math.exp
-import kotlin.math.sin
+import com.example.R
 
 /**
- * Generates clear, pleasant, wellness-inspired harmonic chimes using synthesized PCM audio
- * and gentle haptic feedback. Works reliably across all Android devices and emulators
- * without depending on external audio files.
+ * Plays pleasant, studio-mastered acoustic singing-bowl and marimba chimes
+ * bundled in res/raw/ (`twenty_rule_alarm_chime.wav` and `twenty_rule_rest_complete.wav`).
+ *
+ * Properly manages AudioFocus, AudioAttributes (USAGE_ALARM vs USAGE_NOTIFICATION),
+ * MediaPlayer lifecycle, and haptic vibration so alarms start reliably and stop
+ * instantaneously when dismissed from the notification shade or in-app controls.
  */
 class EyeCareSoundPlayer(private val context: Context) {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private var alarmJob: Job? = null
-    private var activeAudioTrack: AudioTrack? = null
+    private val audioManager: AudioManager? =
+        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+
+    private var alarmMediaPlayer: MediaPlayer? = null
+    private var oneshotMediaPlayer: MediaPlayer? = null
+    private var currentFocusRequest: AudioFocusRequest? = null
 
     @Volatile
     var isAlarmLooping: Boolean = false
@@ -39,125 +37,200 @@ class EyeCareSoundPlayer(private val context: Context) {
         private set
 
     /**
-     * Starts a gentle, noticeable repeating harmonic alarm chime for the 20-minute break alert.
+     * Starts the looping 20-minute eye-break acoustic chime and gentle haptic pulse.
      */
     @Synchronized
     fun startAlarmLoop(soundEnabled: Boolean) {
         stopAlarmLoop()
         isAlarmLooping = true
-        vibratePattern(longArrayOf(0L, 250L, 150L, 250L))
+        vibratePattern(longArrayOf(0L, 280L, 180L, 280L))
 
         if (!soundEnabled) return
 
-        alarmJob = scope.launch {
-            while (isActive && isAlarmLooping) {
-                playSynthesizedSequence(
-                    notesHz = doubleArrayOf(523.25, 659.25, 783.99, 1046.50), // C5 - E5 - G5 - C6 warm bell chord arpeggio
-                    noteDurationMs = 220,
-                    usage = AudioAttributes.USAGE_ALARM
-                )
-                delay(1800L)
+        runCatching {
+            requestTransientAudioFocus(AudioAttributes.USAGE_ALARM)
+            val attrs = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
+            val player = MediaPlayer.create(context, R.raw.twenty_rule_alarm_chime, attrs, 0)
+            if (player != null) {
+                player.isLooping = true
+                player.setVolume(0.90f, 0.90f)
+                player.start()
+                alarmMediaPlayer = player
             }
         }
     }
 
     /**
-     * Immediately stops the repeating 20-minute alarm sound.
+     * Immediately stops the repeating 20-minute alarm chime, cancels active vibration,
+     * and releases audio focus.
      */
     @Synchronized
     fun stopAlarmLoop() {
         isAlarmLooping = false
-        alarmJob?.cancel()
-        alarmJob = null
-        runCatching {
-            activeAudioTrack?.pause()
-            activeAudioTrack?.flush()
-            activeAudioTrack?.release()
-        }
-        activeAudioTrack = null
+        releaseAlarmPlayer()
+        cancelVibration()
+        abandonAudioFocus()
     }
 
     /**
-     * Plays a short, uplifting completion sound when the 20s/30s eye-rest countdown finishes.
+     * Plays the short, uplifting completion chime when the 20s/30s eye-rest countdown finishes.
      */
     @Synchronized
     fun playRestCompletionSound(soundEnabled: Boolean) {
         stopAlarmLoop()
         completionChimeCount += 1
-        vibratePattern(longArrayOf(0L, 120L, 80L, 180L))
+        vibratePattern(longArrayOf(0L, 120L, 90L, 180L))
 
         if (!soundEnabled) return
 
-        scope.launch {
-            playSynthesizedSequence(
-                notesHz = doubleArrayOf(587.33, 739.99, 880.00), // D5 - F#5 - A5 soothing completion triad
-                noteDurationMs = 180,
-                usage = AudioAttributes.USAGE_NOTIFICATION
-            )
-        }
+        // Respect silent ringer mode for non-alarm completion notifications if device is muted
+        val ringerMode = audioManager?.ringerMode ?: AudioManager.RINGER_MODE_NORMAL
+        if (ringerMode == AudioManager.RINGER_MODE_SILENT) return
+
+        playOneShotRawResource(
+            rawResId = R.raw.twenty_rule_rest_complete,
+            usage = AudioAttributes.USAGE_NOTIFICATION
+        )
     }
 
-    private fun playSynthesizedSequence(
-        notesHz: DoubleArray,
-        noteDurationMs: Int,
-        usage: Int
-    ) {
+    /**
+     * Plays a single preview of the 20-minute alarm chime when the user taps "Test Alarm Chime".
+     */
+    @Synchronized
+    fun previewAlarmChime() {
+        if (isAlarmLooping) return
+        playOneShotRawResource(
+            rawResId = R.raw.twenty_rule_alarm_chime,
+            usage = AudioAttributes.USAGE_MEDIA
+        )
+    }
+
+    /**
+     * Plays a single preview of the rest-completion chime when the user taps "Test Rest-Done Chime".
+     */
+    @Synchronized
+    fun previewRestCompleteChime() {
+        if (isAlarmLooping) return
+        playOneShotRawResource(
+            rawResId = R.raw.twenty_rule_rest_complete,
+            usage = AudioAttributes.USAGE_MEDIA
+        )
+    }
+
+    @Synchronized
+    private fun playOneShotRawResource(rawResId: Int, usage: Int) {
+        releaseOneshotPlayer()
         runCatching {
-            val sampleRate = 24000
-            val samplesPerNote = (sampleRate * noteDurationMs) / 1000
-            val totalSamples = samplesPerNote * notesHz.size
-            val buffer = ShortArray(totalSamples)
-
-            for (noteIdx in notesHz.indices) {
-                val freq = notesHz[noteIdx]
-                val offset = noteIdx * samplesPerNote
-                for (i in 0 until samplesPerNote) {
-                    val t = i.toDouble() / sampleRate
-                    // Soft attack and exponential decay envelope for a warm acoustic bell timbre
-                    val attack = (i.toDouble() / (sampleRate * 0.015)).coerceAtMost(1.0)
-                    val decay = exp(-3.5 * i.toDouble() / samplesPerNote)
-                    val fundamental = sin(2.0 * PI * freq * t)
-                    val overtone = 0.25 * sin(2.0 * PI * (freq * 2.0) * t)
-                    val sampleValue = (fundamental + overtone) * 0.75 * attack * decay
-                    buffer[offset + i] = (sampleValue * Short.MAX_VALUE * 0.55).toInt()
-                        .coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
-                        .toShort()
-                }
-            }
-
-            val audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(usage)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
-                .setBufferSizeInBytes(buffer.size * 2)
-                .setTransferMode(AudioTrack.MODE_STATIC)
+            requestTransientAudioFocus(usage)
+            val attrs = AudioAttributes.Builder()
+                .setUsage(usage)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
 
-            activeAudioTrack = audioTrack
-            audioTrack.write(buffer, 0, buffer.size)
-            audioTrack.play()
+            val player = MediaPlayer.create(context, rawResId, attrs, 0)
+            if (player != null) {
+                player.isLooping = false
+                player.setVolume(0.90f, 0.90f)
+                player.setOnCompletionListener { mp ->
+                    runCatching { mp.release() }
+                    synchronized(this@EyeCareSoundPlayer) {
+                        if (oneshotMediaPlayer === mp) {
+                            oneshotMediaPlayer = null
+                        }
+                        if (!isAlarmLooping) {
+                            abandonAudioFocus()
+                        }
+                    }
+                }
+                player.start()
+                oneshotMediaPlayer = player
+            }
         }
     }
 
-    private fun vibratePattern(pattern: LongArray) {
+    private fun releaseAlarmPlayer() {
+        val player = alarmMediaPlayer
+        alarmMediaPlayer = null
+        if (player != null) {
+            runCatching {
+                if (player.isPlaying) {
+                    player.stop()
+                }
+            }
+            runCatching { player.release() }
+        }
+    }
+
+    private fun releaseOneshotPlayer() {
+        val player = oneshotMediaPlayer
+        oneshotMediaPlayer = null
+        if (player != null) {
+            runCatching {
+                if (player.isPlaying) {
+                    player.stop()
+                }
+            }
+            runCatching { player.release() }
+        }
+    }
+
+    private fun requestTransientAudioFocus(usage: Int) {
+        val manager = audioManager ?: return
         runCatching {
-            val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val attrs = AudioAttributes.Builder()
+                    .setUsage(usage)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+                val req = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                    .setAudioAttributes(attrs)
+                    .setWillPauseWhenDucked(false)
+                    .build()
+                currentFocusRequest = req
+                manager.requestAudioFocus(req)
+            } else {
+                @Suppress("DEPRECATION")
+                manager.requestAudioFocus(
+                    null,
+                    AudioManager.STREAM_ALARM,
+                    AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+                )
+            }
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        val manager = audioManager ?: return
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                currentFocusRequest?.let { manager.abandonAudioFocusRequest(it) }
+                currentFocusRequest = null
+            } else {
+                @Suppress("DEPRECATION")
+                manager.abandonAudioFocus(null)
+            }
+        }
+    }
+
+    private fun getVibrator(): Vibrator? {
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
                 manager?.defaultVibrator
             } else {
                 @Suppress("DEPRECATION")
                 context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
             }
+        }.getOrNull()
+    }
+
+    private fun vibratePattern(pattern: LongArray) {
+        runCatching {
+            val vibrator = getVibrator()
             if (vibrator?.hasVibrator() == true) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     vibrator.vibrate(VibrationEffect.createWaveform(pattern, -1))
@@ -166,6 +239,12 @@ class EyeCareSoundPlayer(private val context: Context) {
                     vibrator.vibrate(pattern, -1)
                 }
             }
+        }
+    }
+
+    private fun cancelVibration() {
+        runCatching {
+            getVibrator()?.cancel()
         }
     }
 }

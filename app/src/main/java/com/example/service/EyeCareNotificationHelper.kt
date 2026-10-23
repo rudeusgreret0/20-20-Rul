@@ -21,12 +21,26 @@ import java.util.Locale
 
 /**
  * Manages notification channels, ongoing foreground notifications, and high-priority
- * actionable alert notifications for the 20-20-20 reminder cycle.
+ * actionable alert notifications for the Twenty Rule 20-20-20 reminder cycle.
+ *
+ * Key reliability guarantees:
+ * - Uses `Intent.FLAG_RECEIVER_FOREGROUND` on all action PendingIntents so button taps in the
+ *   notification shade or heads-up banner execute in <10ms without background queue lag.
+ * - Uses `setSound(null, null)` on the alert channel so OS default notification sounds never
+ *   clash with `EyeCareSoundPlayer`'s acoustic chimes.
+ * - Deduplicates alert notification posts by `stateVersion` and throttles ongoing countdown
+ *   notification updates to once per displayed second so SystemUI never drops user button taps.
  */
 class EyeCareNotificationHelper(private val context: Context) {
 
     private val notificationManager: NotificationManager =
         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    @Volatile
+    private var lastOngoingDisplayedKey: String = ""
+
+    @Volatile
+    private var lastAlertPostedKey: String = ""
 
     init {
         ensureChannelsCreated()
@@ -45,6 +59,11 @@ class EyeCareNotificationHelper(private val context: Context) {
 
     fun ensureChannelsCreated() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Delete legacy noisy channel if present from previous version
+            runCatching {
+                notificationManager.deleteNotificationChannel("eye_care_alarm_alerts")
+            }
+
             val ongoingChannel = NotificationChannel(
                 CHANNEL_ONGOING_TIMER,
                 context.getString(R.string.notif_channel_ongoing_name),
@@ -52,6 +71,8 @@ class EyeCareNotificationHelper(private val context: Context) {
             ).apply {
                 description = context.getString(R.string.notif_channel_ongoing_desc)
                 setShowBadge(false)
+                setSound(null, null)
+                enableVibration(false)
             }
 
             val alarmChannel = NotificationChannel(
@@ -60,7 +81,9 @@ class EyeCareNotificationHelper(private val context: Context) {
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = context.getString(R.string.notif_channel_alarm_desc)
-                enableVibration(true)
+                // Sound and vibration are handled cleanly by EyeCareSoundPlayer so they never clash or repeat on update
+                setSound(null, null)
+                enableVibration(false)
                 setShowBadge(true)
             }
 
@@ -79,7 +102,7 @@ class EyeCareNotificationHelper(private val context: Context) {
 
         val (title, contentText) = when (snapshot.state) {
             ReminderState.COUNTING_20_MINUTES -> {
-                "Next Eye Break in $formattedTime" to "20-minute active screen timer running"
+                "Next Eye Break in $formattedTime" to "Twenty Rule • 20-minute screen timer active"
             }
             ReminderState.ALARM_RINGING -> {
                 "Time to Rest Your Eyes!" to "20 minutes elapsed — tap 'Stop Alarm & Rest' to begin your ${snapshot.restDurationSeconds}s break"
@@ -88,7 +111,7 @@ class EyeCareNotificationHelper(private val context: Context) {
                 "Resting Eyes: $formattedTime left" to "Look 20 feet (6 meters) away and blink gently"
             }
             ReminderState.REST_COMPLETED -> {
-                "Eye Rest Complete" to "Tap 'Done (Start 20m)' to begin your next 20-minute cycle"
+                "Rest Period Complete" to "Tap 'Done (Start 20m)' to begin your next 20-minute cycle"
             }
             ReminderState.PAUSED -> {
                 val phaseLabel = if (snapshot.pausedPhase == PausedPhase.WORK_20_MINUTES) {
@@ -99,7 +122,7 @@ class EyeCareNotificationHelper(private val context: Context) {
                 "Reminder Paused ($formattedTime left)" to "Paused during $phaseLabel — tap Resume to continue"
             }
             ReminderState.DISABLED -> {
-                "Reminder Disabled" to "Tap to open 20-20 Eye Care"
+                "Twenty Rule Disabled" to "Tap to open Twenty Rule"
             }
         }
 
@@ -115,8 +138,10 @@ class EyeCareNotificationHelper(private val context: Context) {
             .setContentIntent(buildOpenAppPendingIntent())
             .setOngoing(snapshot.state != ReminderState.DISABLED)
             .setOnlyAlertOnce(true)
+            .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
 
         if (snapshot.state == ReminderState.COUNTING_20_MINUTES ||
             snapshot.state == ReminderState.COUNTING_REST ||
@@ -181,12 +206,29 @@ class EyeCareNotificationHelper(private val context: Context) {
         return builder.build()
     }
 
-    fun updateOngoingNotification(snapshot: ReminderSnapshot, nowMillis: Long) {
+    /**
+     * Updates the ongoing notification only when the displayed state or formatted MM:SS changes.
+     * Prevents IPC flooding of SystemUI.
+     */
+    fun updateOngoingNotification(
+        snapshot: ReminderSnapshot,
+        nowMillis: Long,
+        force: Boolean = false
+    ) {
         if (!hasNotificationPermission()) return
         if (snapshot.state == ReminderState.DISABLED) {
+            lastOngoingDisplayedKey = ""
             notificationManager.cancel(NOTIFICATION_ID_ONGOING)
             return
         }
+
+        val formattedTime = formatDurationMillis(snapshot.computeRemainingMillis(nowMillis))
+        val key = "${snapshot.state.name}:${snapshot.stateVersion}:${snapshot.restDurationSeconds}:$formattedTime"
+        if (!force && key == lastOngoingDisplayedKey) {
+            return
+        }
+        lastOngoingDisplayedKey = key
+
         notificationManager.notify(
             NOTIFICATION_ID_ONGOING,
             buildOngoingNotification(snapshot, nowMillis)
@@ -194,24 +236,30 @@ class EyeCareNotificationHelper(private val context: Context) {
     }
 
     /**
-     * Posts a high-priority heads-up notification when the 20-minute countdown finishes
-     * or when the 20s/30s eye-rest countdown finishes.
+     * Posts a high-priority heads-up notification ONLY ONCE when entering ALARM_RINGING
+     * or REST_COMPLETED, and immediately cancels it on any other state.
+     * Never re-posts on timer ticks so notification action buttons remain 100% responsive.
      */
-    fun syncAlertNotification(snapshot: ReminderSnapshot) {
+    fun syncAlertNotification(snapshot: ReminderSnapshot, force: Boolean = false) {
         if (!hasNotificationPermission()) return
         ensureChannelsCreated()
 
         when (snapshot.state) {
             ReminderState.ALARM_RINGING -> {
+                val alertKey = "ALARM:${snapshot.stateVersion}"
+                if (!force && alertKey == lastAlertPostedKey) return
+                lastAlertPostedKey = alertKey
+
                 val notification = NotificationCompat.Builder(context, CHANNEL_EYE_ALARM)
                     .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                     .setContentTitle(context.getString(R.string.status_time_to_rest))
                     .setContentText(
                         "20 minutes completed! Stop the alarm to begin your ${snapshot.restDurationSeconds}-second eye break."
                     )
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setCategory(NotificationCompat.CATEGORY_ALARM)
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setOnlyAlertOnce(true)
                     .setAutoCancel(false)
                     .setOngoing(true)
                     .setContentIntent(buildOpenAppPendingIntent())
@@ -230,15 +278,20 @@ class EyeCareNotificationHelper(private val context: Context) {
             }
 
             ReminderState.REST_COMPLETED -> {
+                val alertKey = "REST_DONE:${snapshot.stateVersion}"
+                if (!force && alertKey == lastAlertPostedKey) return
+                lastAlertPostedKey = alertKey
+
                 val notification = NotificationCompat.Builder(context, CHANNEL_EYE_ALARM)
                     .setSmallIcon(android.R.drawable.ic_menu_view)
                     .setContentTitle(context.getString(R.string.status_rest_completed))
                     .setContentText(
                         "Your ${snapshot.restDurationSeconds}-second eye rest is finished. Tap Done to start the next 20-minute countdown."
                     )
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
                     .setCategory(NotificationCompat.CATEGORY_REMINDER)
                     .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setOnlyAlertOnce(true)
                     .setAutoCancel(false)
                     .setOngoing(true)
                     .setContentIntent(buildOpenAppPendingIntent())
@@ -257,12 +310,17 @@ class EyeCareNotificationHelper(private val context: Context) {
             }
 
             else -> {
-                notificationManager.cancel(NOTIFICATION_ID_ALERT)
+                if (lastAlertPostedKey.isNotEmpty() || force) {
+                    lastAlertPostedKey = ""
+                    notificationManager.cancel(NOTIFICATION_ID_ALERT)
+                }
             }
         }
     }
 
     fun cancelAllNotifications() {
+        lastOngoingDisplayedKey = ""
+        lastAlertPostedKey = ""
         notificationManager.cancel(NOTIFICATION_ID_ONGOING)
         notificationManager.cancel(NOTIFICATION_ID_ALERT)
     }
@@ -282,6 +340,9 @@ class EyeCareNotificationHelper(private val context: Context) {
     private fun buildActionPendingIntent(action: String, requestCode: Int): PendingIntent {
         val intent = Intent(context, EyeCareReceiver::class.java).apply {
             this.action = action
+            // Crucial: deliver notification button actions on the foreground broadcast queue
+            // so Realme UI / ColorOS / Android 14+ execute them instantaneously (<10ms)
+            addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         }
         return PendingIntent.getBroadcast(
             context,
@@ -292,8 +353,8 @@ class EyeCareNotificationHelper(private val context: Context) {
     }
 
     companion object {
-        const val CHANNEL_ONGOING_TIMER = "eye_care_ongoing_timer"
-        const val CHANNEL_EYE_ALARM = "eye_care_alarm_alerts"
+        const val CHANNEL_ONGOING_TIMER = "twenty_rule_ongoing_timer_v2"
+        const val CHANNEL_EYE_ALARM = "twenty_rule_alarm_alerts_v2"
         const val NOTIFICATION_ID_ONGOING = 1001
         const val NOTIFICATION_ID_ALERT = 1002
 

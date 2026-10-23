@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "20-20 Eye Care"
+rootProject.name = "Twenty Rule"
 
 include(":app")

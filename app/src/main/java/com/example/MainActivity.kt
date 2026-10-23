@@ -1,6 +1,7 @@
 package com.example
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -85,7 +86,9 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     onOpenExactAlarmSettings = ::openExactAlarmSettings,
-                    onOpenBatteryOptimizationSettings = ::openBatteryOptimizationSettings
+                    onOpenBatteryOptimizationSettings = ::openBatteryOptimizationSettings,
+                    onPreviewAlarmChime = viewModel::onPreviewAlarmChimeClicked,
+                    onPreviewRestCompleteChime = viewModel::onPreviewRestCompleteChimeClicked
                 )
             }
         }
@@ -99,19 +102,34 @@ class MainActivity : ComponentActivity() {
                 }
                 startActivity(intent)
             } else {
-                openAppNotificationSettings()
+                openAppDetailsSettings()
             }
         }.onFailure {
-            openAppNotificationSettings()
+            openAppDetailsSettings()
         }
     }
 
+    @SuppressLint("BatteryLife")
     private fun openBatteryOptimizationSettings() {
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                // Direct 1-tap system dialog for Twenty Rule instead of the 100-app system list
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:$packageName")
+                }
                 startActivity(intent)
             }
+        }.onFailure {
+            openAppDetailsSettings()
+        }
+    }
+
+    private fun openAppDetailsSettings() {
+        runCatching {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:$packageName")
+            }
+            startActivity(intent)
         }
     }
 
@@ -121,6 +139,8 @@ class MainActivity : ComponentActivity() {
                 putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
             }
             startActivity(intent)
+        }.onFailure {
+            openAppDetailsSettings()
         }
     }
 }

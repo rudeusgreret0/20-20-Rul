@@ -16,8 +16,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * Foreground service that maintains reliable background operation for the 20-20-20 cycle
- * when the app is minimized, removed from recent apps, or the screen is turned off.
+ * Foreground service that maintains reliable background operation for the Twenty Rule
+ * 20-20-20 cycle when the app is minimized, removed from recent apps, or the screen is off.
  */
 class EyeCareForegroundService : Service() {
 
@@ -28,14 +28,17 @@ class EyeCareForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         startTickerLoop()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        isRunning = true
         val coordinator = EyeCareCoordinator.getInstance(applicationContext)
         val snapshot = coordinator.repository.currentSnapshot
 
         if (snapshot.state == ReminderState.DISABLED) {
+            isRunning = false
             stopForegroundCompat()
             stopSelf()
             return START_NOT_STICKY
@@ -61,8 +64,7 @@ class EyeCareForegroundService : Service() {
             }
         }
 
-        // Reconcile state in case process was restarted by START_STICKY
-        coordinator.reconcile(isDeviceBoot = false)
+        coordinator.checkTimerExpirationOnTick()
         startTickerLoop()
 
         return START_STICKY
@@ -70,14 +72,14 @@ class EyeCareForegroundService : Service() {
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         super.onTaskRemoved(rootIntent)
-        // Ensure alarms and ongoing service stay active when swiped from Recent Apps
         val coordinator = EyeCareCoordinator.getInstance(applicationContext)
         val snapshot = coordinator.repository.currentSnapshot
         if (snapshot.state != ReminderState.DISABLED) {
             coordinator.alarmScheduler.syncAlarmForSnapshot(snapshot)
             coordinator.notificationHelper.updateOngoingNotification(
-                snapshot,
-                System.currentTimeMillis()
+                snapshot = snapshot,
+                nowMillis = System.currentTimeMillis(),
+                force = true
             )
         }
     }
@@ -89,18 +91,19 @@ class EyeCareForegroundService : Service() {
             while (isActive) {
                 val current = coordinator.repository.currentSnapshot
                 if (current.state == ReminderState.DISABLED) {
+                    isRunning = false
                     stopForegroundCompat()
                     stopSelf()
                     break
                 }
-                coordinator.reconcile(isDeviceBoot = false)
-                val updated = coordinator.repository.currentSnapshot
+                val updated = coordinator.checkTimerExpirationOnTick()
                 if (updated.state == ReminderState.COUNTING_20_MINUTES ||
                     updated.state == ReminderState.COUNTING_REST
                 ) {
                     coordinator.notificationHelper.updateOngoingNotification(
-                        updated,
-                        System.currentTimeMillis()
+                        snapshot = updated,
+                        nowMillis = System.currentTimeMillis(),
+                        force = false
                     )
                 }
                 delay(1000L)
@@ -120,6 +123,7 @@ class EyeCareForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         tickerJob?.cancel()
         serviceScope.cancel()
         super.onDestroy()
@@ -127,5 +131,9 @@ class EyeCareForegroundService : Service() {
 
     companion object {
         const val ACTION_START_OR_SYNC = "com.example.action.START_OR_SYNC_SERVICE"
+
+        @Volatile
+        var isRunning: Boolean = false
+            private set
     }
 }

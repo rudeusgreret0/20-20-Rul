@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">20-20 Eye Care</string>
+    <string name="app_name">Twenty Rule</string>
     <string name="app_subtitle">Automatic 20-20-20 Visual Wellness</string>
 
     <!-- Status Labels -->
@@ -12,10 +12,10 @@
 
     <!-- Status Subtitles / Guidance -->
     <string name="guidance_disabled">Enable automatic 20-minute screen-time tracking and guided 20-foot distance breaks.</string>
-    <string name="guidance_counting_20_min">Running reliably in the background. You will be alerted after 20 minutes of active time.</string>
+    <string name="guidance_counting_20_min">Twenty Rule is running reliably in the background. You will be alerted after 20 minutes of active time.</string>
     <string name="guidance_alarm_ringing">20 minutes elapsed! Acknowledge the alarm to begin your eye-rest countdown.</string>
     <string name="guidance_counting_rest">Look at an object at least 20 feet (6 meters) away and blink softly.</string>
-    <string name="guidance_rest_completed">Great job resting your eyes! Tap Continue to start the next 20-minute cycle.</string>
+    <string name="guidance_rest_completed">Great job resting your eyes! Tap Done to start the next 20-minute cycle.</string>
     <string name="guidance_paused">Timer is paused. Resume anytime to continue where you left off.</string>
 
     <!-- Primary Controls -->
@@ -33,7 +33,9 @@
     <string name="settings_rest_20s">20 sec (Default)</string>
     <string name="settings_rest_30s">30 sec</string>
     <string name="settings_sound_label">Alarm &amp; Completion Sound</string>
-    <string name="settings_sound_desc">Play harmonic audio chimes when work and rest periods end</string>
+    <string name="settings_sound_desc">Play pleasant acoustic singing-bowl chimes when work and rest periods end</string>
+    <string name="settings_preview_alarm_sound">Test Alarm Chime</string>
+    <string name="settings_preview_complete_sound">Test Rest-Done Chime</string>
     <string name="settings_primary_interval_label">Primary Work Interval</string>
     <string name="settings_primary_interval_value">Fixed at 20:00 minutes (20-20-20 standard)</string>
 
@@ -46,20 +48,21 @@
     <string name="permission_exact_alarm_granted">Granted — Triggers at the exact second even when screen is off</string>
     <string name="permission_exact_alarm_missing">Recommended so Android does not delay 20-minute reminders in Doze mode</string>
     <string name="permission_battery_title">Unrestricted Background Execution</string>
-    <string name="permission_battery_granted">Optimized — Exempt from aggressive background restrictions</string>
-    <string name="permission_battery_missing">Recommended if your device manufacturer stops background timers</string>
+    <string name="permission_battery_granted">Allowed — Exempt from background battery restrictions</string>
+    <string name="permission_battery_missing">Tap Allow so your phone does not pause Twenty Rule in the background</string>
     <string name="action_grant">Grant</string>
+    <string name="action_allow">Allow</string>
     <string name="action_configure">Configure</string>
 
     <!-- System Limitations Note -->
     <string name="os_limitations_title">How Background Timing Works</string>
-    <string name="os_limitations_body">• Active &amp; Locked Screen: Runs continuously via an ongoing Foreground Service and system AlarmManager.\n• Device Shutdown: Android apps cannot run while the phone is powered off.\n• Automatic Reboot Recovery: When your phone restarts, 20-20 Eye Care automatically restores your active reminder state without duplicate alarms.</string>
+    <string name="os_limitations_body">• Active &amp; Locked Screen: Runs continuously via an ongoing Foreground Service and system AlarmManager.\n• Device Shutdown: Android apps cannot run while the phone is powered off.\n• Automatic Reboot Recovery: When your phone restarts, Twenty Rule automatically restores your active reminder state without duplicate alarms.</string>
 
     <!-- Notifications -->
-    <string name="notif_channel_ongoing_name">Ongoing Eye-Care Timer</string>
+    <string name="notif_channel_ongoing_name">Twenty Rule Ongoing Timer</string>
     <string name="notif_channel_ongoing_desc">Displays active 20-20-20 countdown status in the background</string>
-    <string name="notif_channel_alarm_name">Eye-Rest Alarms &amp; Alerts</string>
-    <string name="notif_channel_alarm_desc">Audible alerts when 20-minute screen time or 20-second rest finishes</string>
+    <string name="notif_channel_alarm_name">Twenty Rule Alarms &amp; Alerts</string>
+    <string name="notif_channel_alarm_desc">Alerts when 20-minute screen time or 20-second rest finishes</string>
     <string name="notif_action_stop_alarm">Stop Alarm &amp; Rest</string>
     <string name="notif_action_done">Done (Start 20m)</string>
     <string name="notif_action_pause">Pause</string>

@@ -7,8 +7,8 @@ import com.example.model.ReminderState
 import com.example.service.EyeCareCoordinator
 
 /**
- * Handles system broadcasts (BOOT_COMPLETED, package update) and actionable notification /
- * AlarmManager intents. Ensures background operation works without opening the app.
+ * Handles system broadcasts (BOOT_COMPLETED, LOCKED_BOOT_COMPLETED, package update)
+ * and actionable notification / AlarmManager intents.
  */
 class EyeCareReceiver : BroadcastReceiver() {
 
@@ -18,6 +18,7 @@ class EyeCareReceiver : BroadcastReceiver() {
 
         when (action) {
             Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_LOCKED_BOOT_COMPLETED,
             ACTION_QUICKBOOT_POWERON,
             Intent.ACTION_MY_PACKAGE_REPLACED -> {
                 val snapshot = coordinator.repository.currentSnapshot

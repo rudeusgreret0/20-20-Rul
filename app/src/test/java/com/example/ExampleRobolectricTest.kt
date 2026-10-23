@@ -343,10 +343,30 @@ class ExampleRobolectricTest {
 
     @Test
     fun `MainActivity launches and instantiates EyeCareViewModel via AndroidViewModelFactory`() {
+        assertEquals("Twenty Rule", context.getString(R.string.app_name))
         org.robolectric.Robolectric.buildActivity(MainActivity::class.java).use { controller ->
             controller.setup()
             val activity = controller.get()
             assertTrue(activity != null)
         }
+    }
+
+    @Test
+    fun `checkTimerExpirationOnTick transitions cleanly at expiration without IPC storm`() {
+        coordinator.enableReminder()
+        fakeClock.advanceByMinutes(10)
+        val midTick = coordinator.checkTimerExpirationOnTick()
+        assertEquals(ReminderState.COUNTING_20_MINUTES, midTick.state)
+
+        fakeClock.advanceByMinutes(10)
+        val expiredWork = coordinator.checkTimerExpirationOnTick()
+        assertEquals(ReminderState.ALARM_RINGING, expiredWork.state)
+        assertTrue(coordinator.soundPlayer.isAlarmLooping)
+
+        coordinator.acknowledgeAlarmAndStartRest()
+        assertFalse(coordinator.soundPlayer.isAlarmLooping)
+        fakeClock.advanceBySeconds(20)
+        val expiredRest = coordinator.checkTimerExpirationOnTick()
+        assertEquals(ReminderState.REST_COMPLETED, expiredRest.state)
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,12 +35,12 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.RemoveRedEye
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -65,8 +66,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -95,6 +99,8 @@ fun EyeCareScreen(
     onRequestNotificationPermission: () -> Unit,
     onOpenExactAlarmSettings: () -> Unit,
     onOpenBatteryOptimizationSettings: () -> Unit,
+    onPreviewAlarmChime: () -> Unit = {},
+    onPreviewRestCompleteChime: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -104,18 +110,14 @@ fun EyeCareScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.size(38.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.RemoveRedEye,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
+                        Image(
+                            painter = painterResource(id = R.drawable.img_twenty_rule_logo),
+                            contentDescription = stringResource(R.string.app_name),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                        )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
@@ -199,7 +201,9 @@ fun EyeCareScreen(
                             restDurationSeconds = uiState.snapshot.restDurationSeconds,
                             soundEnabled = uiState.snapshot.soundEnabled,
                             onSelectRestDuration = onSelectRestDuration,
-                            onToggleSoundEnabled = onToggleSoundEnabled
+                            onToggleSoundEnabled = onToggleSoundEnabled,
+                            onPreviewAlarmChime = onPreviewAlarmChime,
+                            onPreviewRestCompleteChime = onPreviewRestCompleteChime
                         )
                         EyeCarePermissionsAndReliabilityCard(
                             hasNotificationPermission = uiState.hasNotificationPermission,
@@ -251,7 +255,9 @@ fun EyeCareScreen(
                             restDurationSeconds = uiState.snapshot.restDurationSeconds,
                             soundEnabled = uiState.snapshot.soundEnabled,
                             onSelectRestDuration = onSelectRestDuration,
-                            onToggleSoundEnabled = onToggleSoundEnabled
+                            onToggleSoundEnabled = onToggleSoundEnabled,
+                            onPreviewAlarmChime = onPreviewAlarmChime,
+                            onPreviewRestCompleteChime = onPreviewRestCompleteChime
                         )
 
                         EyeCarePermissionsAndReliabilityCard(
@@ -516,6 +522,8 @@ fun EyeCareMinimalSettingsCard(
     soundEnabled: Boolean,
     onSelectRestDuration: (Int) -> Unit,
     onToggleSoundEnabled: (Boolean) -> Unit,
+    onPreviewAlarmChime: () -> Unit = {},
+    onPreviewRestCompleteChime: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -588,45 +596,96 @@ fun EyeCareMinimalSettingsCard(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
-            // 2. Alarm & Completion Sound Toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // 2. Alarm & Completion Sound Toggle + Preview Buttons
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = if (soundEnabled) {
-                            Icons.AutoMirrored.Outlined.VolumeUp
-                        } else {
-                            Icons.AutoMirrored.Outlined.VolumeOff
-                        },
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (soundEnabled) {
+                                Icons.AutoMirrored.Outlined.VolumeUp
+                            } else {
+                                Icons.AutoMirrored.Outlined.VolumeOff
+                            },
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Column {
+                            Text(
+                                text = stringResource(R.string.settings_sound_label),
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = stringResource(R.string.settings_sound_desc),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = soundEnabled,
+                        onCheckedChange = onToggleSoundEnabled,
+                        modifier = Modifier.testTag("sound_toggle_switch")
                     )
-                    Column {
-                        Text(
-                            text = stringResource(R.string.settings_sound_label),
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = stringResource(R.string.settings_sound_desc),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                }
+
+                AnimatedVisibility(visible = soundEnabled) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onPreviewAlarmChime,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("preview_alarm_chime_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MusicNote,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.settings_preview_alarm_sound),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = onPreviewRestCompleteChime,
+                            shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .testTag("preview_complete_chime_button")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.MusicNote,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = stringResource(R.string.settings_preview_complete_sound),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                Switch(
-                    checked = soundEnabled,
-                    onCheckedChange = onToggleSoundEnabled,
-                    modifier = Modifier.testTag("sound_toggle_switch")
-                )
             }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
@@ -769,14 +828,13 @@ fun EyeCarePermissionsAndReliabilityCard(
                     stringResource(R.string.permission_battery_missing)
                 },
                 isGranted = isBatteryOptimizationIgnored,
-                actionLabel = stringResource(R.string.action_configure),
+                actionLabel = stringResource(R.string.action_allow),
                 onActionClick = onOpenBatteryOptimizationSettings,
                 actionTestTag = "configure_battery_button"
             )
 
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
 
-            // Expandable OS limitations & background behavior explanation
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

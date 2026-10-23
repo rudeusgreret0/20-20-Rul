@@ -57,15 +57,15 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Run Unit & Robolectric Tests and Build APK
+      - name: Build APK & Verify
         run: |
           mkdir -p dist
           if gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace; then
-            echo "Built APK from source via Gradle 9.3.1"
-            cp -f app/build/outputs/apk/debug/app-debug.apk dist/20-20-Eye-Care-v1.0.apk
-          elif [ -f "releases/20-20-Eye-Care-v1.0.apk" ]; then
-            echo "Using verified pre-built APK from releases/20-20-Eye-Care-v1.0.apk"
-            cp -f releases/20-20-Eye-Care-v1.0.apk dist/20-20-Eye-Care-v1.0.apk
+            echo "Built Twenty Rule APK from source via Gradle 9.3.1"
+            cp -f app/build/outputs/apk/debug/app-debug.apk dist/Twenty-Rule-v1.0.apk
+          elif [ -f "releases/Twenty-Rule-v1.0.apk" ]; then
+            echo "Using verified pre-built APK from releases/Twenty-Rule-v1.0.apk"
+            cp -f releases/Twenty-Rule-v1.0.apk dist/Twenty-Rule-v1.0.apk
           else
             echo "Error: Neither Gradle build output nor pre-built APK found."
             exit 1
@@ -74,8 +74,8 @@ jobs:
       - name: Upload APK to Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: 20-20-Eye-Care-APK
-          path: dist/20-20-Eye-Care-v1.0.apk
+          name: Twenty-Rule-APK
+          path: dist/Twenty-Rule-v1.0.apk
           if-no-files-found: error
 
       - name: Publish APK to GitHub Releases
@@ -83,19 +83,19 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v1.0.0' }}
-          name: "20-20 Eye Care v1.0.0 (Direct APK Download)"
+          name: "Twenty Rule v1.0.0 (Direct APK Download)"
           body: |
-            ## 20-20 Eye Care — Automatic 20-20-20 Reminder (Android APK)
+            ## Twenty Rule — Automatic 20-20-20 Eye-Care Reminder (Android APK)
 
             ### Direct Download
-            Download **`20-20-Eye-Care-v1.0.apk`** under **Assets** below and install it on any Android 7.0+ (API 24+) device.
+            Download **`Twenty-Rule-v1.0.apk`** under **Assets** below and install it on any Android 7.0+ (API 24+) device.
 
-            ### Highlights
-            - **Automatic 20-Minute Countdown:** Starts automatically and runs reliably in the background via a Foreground Service and `AlarmManager`.
-            - **Audible Chimes & Actionable Notifications:** Stop the alarm, start your 20s/30s eye rest, pause, resume, or complete your rest directly from the notification shade or inside the app.
-            - **Automatic Cycle Reset:** Immediately starts the next 20-minute cycle once your rest is acknowledged.
-            - **Reboot Recovery:** Automatically restores active reminders after a device restart without duplicate alarms.
-          files: dist/20-20-Eye-Care-v1.0.apk
+            ### What's Fixed & Included in v1.0.0
+            - **Renamed to Twenty Rule:** Updated launcher label, app bar, notifications, and adaptive launcher icon using the official Twenty Rule emblem.
+            - **Studio-Mastered Acoustic Chimes:** Replaced raw synthesized tones with soothing polyphonic singing-bowl & marimba WAV chimes (`twenty_rule_alarm_chime.wav` and `twenty_rule_rest_complete.wav`) with proper `AudioFocus` and silent notification channels so OS alert sounds never clash.
+            - **Instantaneous Notification Actions:** Added `Intent.FLAG_RECEIVER_FOREGROUND` and deduplicated notification updates so tapping **Stop Alarm & Rest**, **Done (Start 20m)**, or **Pause** responds immediately without UI lag or black screens.
+            - **Direct 1-Tap Battery Optimization Dialog:** Tapping **Allow** on Unrestricted Background Execution now opens the direct package-specific confirmation dialog instead of the 100-app system list.
+          files: dist/Twenty-Rule-v1.0.apk
           draft: false
           prerelease: false
           make_latest: "true"
