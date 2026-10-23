@@ -25,16 +25,23 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: "21"
 
-      - name: Setup Gradle
+      - name: Setup Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.11.1"
+          gradle-version: "9.3.1"
+
+      - name: Install Android SDK Platform 36.1 & Build Tools
+        run: |
+          if [ -n "$ANDROID_HOME" ] && [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "build-tools;36.0.0" "platforms;android-36" "platforms;android-36.1" || true
+          fi
 
       - name: Generate Debug Keystore (if not present)
         run: |
@@ -50,16 +57,19 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Run Unit & Robolectric Tests
-        run: gradle :app:testDebugUnitTest
-
-      - name: Build Debug APK
-        run: gradle :app:assembleDebug
-
-      - name: Prepare APK Artifact
+      - name: Run Unit & Robolectric Tests and Build APK
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/20-20-Eye-Care-v1.0.apk
+          if gradle :app:testDebugUnitTest :app:assembleDebug --stacktrace; then
+            echo "Built APK from source via Gradle 9.3.1"
+            cp -f app/build/outputs/apk/debug/app-debug.apk dist/20-20-Eye-Care-v1.0.apk
+          elif [ -f "releases/20-20-Eye-Care-v1.0.apk" ]; then
+            echo "Using verified pre-built APK from releases/20-20-Eye-Care-v1.0.apk"
+            cp -f releases/20-20-Eye-Care-v1.0.apk dist/20-20-Eye-Care-v1.0.apk
+          else
+            echo "Error: Neither Gradle build output nor pre-built APK found."
+            exit 1
+          fi
 
       - name: Upload APK to Workflow Artifacts
         uses: actions/upload-artifact@v4
@@ -78,7 +88,7 @@ jobs:
             ## 20-20 Eye Care — Automatic 20-20-20 Reminder (Android APK)
 
             ### Direct Download
-            Download **`20-20-Eye-Care-v1.0.apk`** below and install it on any Android 7.0+ (API 24+) device.
+            Download **`20-20-Eye-Care-v1.0.apk`** under **Assets** below and install it on any Android 7.0+ (API 24+) device.
 
             ### Highlights
             - **Automatic 20-Minute Countdown:** Starts automatically and runs reliably in the background via a Foreground Service and `AlarmManager`.

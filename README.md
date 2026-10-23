@@ -4,17 +4,13 @@ A native Android wellness utility built with **Kotlin** and **Jetpack Compose (M
 
 ---
 
-## Direct APK Download & Project Export
+## Direct APK Download
 
-### Option 1: Download Directly from AI Studio (Immediate)
-You can download the compiled APK or full source ZIP directly from the AI Studio interface right now:
-1. Click the **Settings / Export (Gear or Download)** menu in the top-right corner of Google AI Studio.
-2. Select **Download APK** to get the ready-to-install Android package, or **Export to ZIP** to download the full Android Studio project.
-
-### Option 2: Push to GitHub & Automatic GitHub Releases
-This repository includes a pre-configured **GitHub Actions CI/CD workflow** ([`.github/workflows/android-release.yml`](.github/workflows/android-release.yml)) that automatically builds `20-20-Eye-Care-v1.0.apk`, uploads it as a build artifact, and publishes a **GitHub Release (`v1.0.0`)** on every push to `main`/`master`:
-- **Latest Release Page:** `https://github.com/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>/releases/latest`
-- **Direct APK Link (once pushed):** `https://github.com/<YOUR_GITHUB_USERNAME>/<YOUR_REPO_NAME>/releases/latest/download/20-20-Eye-Care-v1.0.apk`
+1. **Direct Repository Download (Immediate):**
+   - The compiled, signed APK is included directly in this repository at **[`releases/20-20-Eye-Care-v1.0.apk`](releases/20-20-Eye-Care-v1.0.apk)**.
+   - Click on `releases/20-20-Eye-Care-v1.0.apk` in GitHub and tap **Download raw file** (or **View raw**) to download and install the APK immediately on your Android phone.
+2. **GitHub Releases Download:**
+   - The included GitHub Actions workflow ([`.github/workflows/android-release.yml`](.github/workflows/android-release.yml)) also publishes **`20-20-Eye-Care-v1.0.apk`** directly to **GitHub Releases (`v1.0.0`)** under the repository's **Releases** tab.
 
 ---
 
@@ -52,58 +48,18 @@ REST_COMPLETED ─────────────────────�
 
 ---
 
-## Project Structure
-
-```text
-├── .github/workflows/
-│   └── android-release.yml                # Automated CI test, APK build & GitHub Release publisher
-├── app/
-│   ├── build.gradle.kts                   # App module Gradle configuration
-│   └── src/
-│       ├── main/
-│       │   ├── AndroidManifest.xml        # Permissions, ForegroundService & BroadcastReceiver
-│       │   ├── java/com/example/
-│       │   │   ├── MainActivity.kt        # Edge-to-edge Activity & runtime permission launchers
-│       │   │   ├── data/
-│       │   │   │   └── EyeCareRepository.kt        # Persistent state machine & boot reconciliation
-│       │   │   ├── model/
-│       │   │   │   └── ReminderModels.kt           # ReminderState, PausedPhase, ReminderSnapshot
-│       │   │   ├── receiver/
-│       │   │   │   └── EyeCareReceiver.kt          # Boot, AlarmManager & notification action receiver
-│       │   │   ├── service/
-│       │   │   │   ├── EyeCareAlarmScheduler.kt    # Exact & fallback RTC_WAKEUP alarm scheduling
-│       │   │   │   ├── EyeCareCoordinator.kt       # Atomic state + service + audio + alarm orchestrator
-│       │   │   │   ├── EyeCareForegroundService.kt # Sticky foreground service & 1s background ticker
-│       │   │   │   ├── EyeCareNotificationHelper.kt# Ongoing & heads-up actionable notifications
-│       │   │   │   └── EyeCareSoundPlayer.kt       # Synthesized harmonic PCM bell chimes & haptics
-│       │   │   └── ui/
-│       │   │       ├── EyeCareScreen.kt            # Responsive M3 wellness interface
-│       │   │       ├── EyeCareViewModel.kt         # Lifecycle-aware UI state holder
-│       │   │       ├── components/
-│       │   │       │   └── EyeCareVisualComponents.kt # Custom Canvas dial & botanical horizon card
-│       │   │       └── theme/                      # Botanical Sage Light & Nocturnal Pine Dark themes
-│       │   └── res/                                # Bundled Google Fonts, adaptive icons & strings
-│       └── test/java/com/example/
-│           └── ExampleRobolectricTest.kt  # Automated JVM & Robolectric test suite (10 tests)
-├── build.gradle.kts
-├── gradle/libs.versions.toml              # Version catalog
-└── settings.gradle.kts
-```
-
----
-
 ## Local Build & Test Instructions
 
 ### Prerequisites
-- **JDK 17+**
-- **Android SDK (API 36)**
+- **JDK 21** (`temurin-21`)
+- **Gradle 9.3.1**
+- **Android SDK (API 36.1)**
 
 ### Build Debug APK
 ```bash
 gradle :app:assembleDebug
 ```
-The compiled APK will be generated at:
-`app/build/outputs/apk/debug/app-debug.apk`
+The compiled APK is generated at `app/build/outputs/apk/debug/app-debug.apk` (and pre-packaged at `releases/20-20-Eye-Care-v1.0.apk`).
 
 ### Run Automated Unit & Robolectric Tests
 ```bash
